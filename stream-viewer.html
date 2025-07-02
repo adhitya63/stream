@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stream Viewer - Test</title>
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@1"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            min-height: 100vh;
+        }
+        .container {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            padding: 30px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #fff;
+        }
+        .stream-section {
+            margin-bottom: 30px;
+        }
+        .stream-input {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            align-items: center;
+        }
+        input {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+        }
+        button {
+            padding: 12px 24px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background 0.3s;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        button:disabled {
+            background: #666;
+            cursor: not-allowed;
+        }
+        #video {
+            width: 100%;
+            max-width: 800px;
+            height: 450px;
+            background: #000;
+            border-radius: 10px;
+            display: block;
+            margin: 0 auto;
+        }
+        .status {
+            text-align: center;
+            margin: 20px 0;
+            padding: 10px;
+            border-radius: 8px;
+            font-weight: bold;
+        }
+        .status.success {
+            background: rgba(76, 175, 80, 0.2);
+            border: 1px solid #4CAF50;
+        }
+        .status.error {
+            background: rgba(244, 67, 54, 0.2);
+            border: 1px solid #f44336;
+        }
+        .status.info {
+            background: rgba(33, 150, 243, 0.2);
+            border: 1px solid #2196F3;
+        }
+        .instructions {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        .quick-links {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        .quick-link {
+            padding: 8px 16px;
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            border-radius: 6px;
+            color: white;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .quick-link:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎥 Stream Viewer</h1>
+        
+        <div class="instructions">
+            <h3>📋 How to test with Authentication:</h3>
+            <ol>
+                <li><strong>Use Valid Stream Keys:</strong> test123, demo123, livestream, stream001, or any 6+ character alphanumeric key</li>
+                <li><strong>Configure OBS:</strong> Set server to <code>rtmp://localhost:1935/live</code></li>
+                <li><strong>Set Stream Key:</strong> Use one of the valid keys above</li>
+                <li><strong>Start Streaming</strong> in OBS (authentication will be checked)</li>
+                <li><strong>Enter your stream key</strong> below and click "Watch Stream"</li>
+            </ol>
+            <div style="background: rgba(255, 193, 7, 0.2); padding: 10px; border-radius: 5px; margin-top: 10px;">
+                <strong>⚠️ Authentication Enabled:</strong> Only valid stream keys will be accepted for streaming.
+            </div>
+        </div>
+
+        <div class="stream-section">
+            <div class="quick-links">
+                <button class="quick-link" onclick="loadStream('test123')">test123 ✓</button>
+                <button class="quick-link" onclick="loadStream('demo123')">demo123 ✓</button>
+                <button class="quick-link" onclick="loadStream('livestream')">livestream ✓</button>
+                <button class="quick-link" onclick="loadStream('stream001')">stream001 ✓</button>
+            </div>
+            
+            <div class="stream-input">
+                <input type="text" id="streamKey" placeholder="Enter your stream key (e.g., test123)" value="test123">
+                <button onclick="loadStream()">Watch Stream</button>
+                <button onclick="stopStream()">Stop</button>
+            </div>
+            
+            <div id="status" class="status info">
+                Enter a stream key and click "Watch Stream" to begin
+            </div>
+        </div>
+
+        <video id="video" controls muted>
+            <p>Your browser doesn't support HTML video.</p>
+        </video>
+    </div>
+
+    <script>
+        let hls = null;
+        const video = document.getElementById('video');
+        const statusDiv = document.getElementById('status');
+        
+        function updateStatus(message, type = 'info') {
+            statusDiv.textContent = message;
+            statusDiv.className = `status ${type}`;
+        }
+        
+        function loadStream(streamKey = null) {
+            const key = streamKey || document.getElementById('streamKey').value.trim();
+            
+            if (!key) {
+                updateStatus('Please enter a stream key', 'error');
+                return;
+            }
+            
+            // Update input field if streamKey was provided
+            if (streamKey) {
+                document.getElementById('streamKey').value = streamKey;
+            }
+            
+            const streamUrl = `http://localhost:8001/live/${key}/index.m3u8`;
+            
+            updateStatus(`Loading stream: ${key}...`, 'info');
+            
+            // Clean up existing HLS instance
+            if (hls) {
+                hls.destroy();
+            }
+            
+            if (Hls.isSupported()) {
+                hls = new Hls({
+                    debug: false,
+                    enableWorker: true,
+                    lowLatencyMode: true,
+                    backBufferLength: 90
+                });
+                
+                hls.loadSource(streamUrl);
+                hls.attachMedia(video);
+                
+                hls.on(Hls.Events.MANIFEST_PARSED, function () {
+                    updateStatus(`✅ Stream loaded successfully: ${key}`, 'success');
+                    video.play().catch(e => {
+                        console.log('Autoplay prevented:', e);
+                        updateStatus(`Stream ready: ${key} - Click play to start`, 'success');
+                    });
+                });
+                
+                hls.on(Hls.Events.ERROR, function (event, data) {
+                    console.error('HLS Error:', data);
+                    if (data.fatal) {
+                        switch (data.type) {
+                            case Hls.ErrorTypes.NETWORK_ERROR:
+                                updateStatus(`❌ Network error - Stream '${key}' not found or not streaming`, 'error');
+                                break;
+                            case Hls.ErrorTypes.MEDIA_ERROR:
+                                updateStatus('❌ Media error - Trying to recover...', 'error');
+                                hls.recoverMediaError();
+                                break;
+                            default:
+                                updateStatus(`❌ Fatal error: ${data.details}`, 'error');
+                                hls.destroy();
+                                break;
+                        }
+                    }
+                });
+                
+            } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                // Safari native HLS support
+                video.src = streamUrl;
+                video.addEventListener('loadedmetadata', function() {
+                    updateStatus(`✅ Stream loaded successfully: ${key}`, 'success');
+                });
+                video.addEventListener('error', function() {
+                    updateStatus(`❌ Stream '${key}' not found or not streaming`, 'error');
+                });
+            } else {
+                updateStatus('❌ HLS not supported in this browser', 'error');
+            }
+        }
+        
+        function stopStream() {
+            if (hls) {
+                hls.destroy();
+                hls = null;
+            }
+            video.src = '';
+            updateStatus('Stream stopped', 'info');
+        }
+        
+        // Handle Enter key in input
+        document.getElementById('streamKey').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                loadStream();
+            }
+        });
+    </script>
+</body>
+</html>

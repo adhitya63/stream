@@ -1,0 +1,21 @@
+{
+  "name": "streaming-client-sdk",
+  "version": "1.0.0",
+  "description": "Client SDK for the custom streaming server",
+  "main": "dist/streaming-client.js",
+  "types": "dist/streaming-client.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "dependencies": {
+    "socket.io-client": "^4.7.2"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "@types/node": "^20.0.0"
+  },
+  "keywords": ["streaming", "webrtc", "rtmp", "sdk"],
+  "author": "Your Name",
+  "license": "MIT"
+}

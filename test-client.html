@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Streaming Server Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .result { background: #f5f5f5; padding: 10px; margin: 10px 0; border-radius: 3px; }
+        button { padding: 8px 15px; margin: 5px; cursor: pointer; }
+        input { padding: 5px; margin: 5px; width: 200px; }
+        .success { color: green; }
+        .error { color: red; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 Streaming Server Test Page</h1>
+        
+        <div class="section">
+            <h2>1. Server Status</h2>
+            <button onclick="testServerStatus()">Test Server Connection</button>
+            <div id="server-status" class="result"></div>
+        </div>
+
+        <div class="section">
+            <h2>2. User Registration</h2>
+            <input type="text" id="username" placeholder="Username" value="testuser">
+            <input type="email" id="email" placeholder="Email" value="test@example.com">
+            <input type="password" id="password" placeholder="Password" value="password123">
+            <button onclick="registerUser()">Register User</button>
+            <div id="register-result" class="result"></div>
+        </div>
+
+        <div class="section">
+            <h2>3. User Login</h2>
+            <button onclick="loginUser()">Login with Registered User</button>
+            <div id="login-result" class="result"></div>
+        </div>
+
+        <div class="section">
+            <h2>4. Room Management</h2>
+            <input type="text" id="room-name" placeholder="Room Name" value="Test Room">
+            <button onclick="createRoom()">Create Room</button>
+            <button onclick="getRooms()">Get Public Rooms</button>
+            <div id="room-result" class="result"></div>
+        </div>
+
+        <div class="section">
+            <h2>5. Media Server Status</h2>
+            <button onclick="getMediaStatus()">Get Media Server Status</button>
+            <div id="media-result" class="result"></div>
+        </div>
+
+        <div class="section">
+            <h2>6. WebSocket Connection</h2>
+            <button onclick="connectWebSocket()">Connect to WebSocket</button>
+            <button onclick="disconnectWebSocket()">Disconnect</button>
+            <div id="websocket-result" class="result"></div>
+        </div>
+    </div>
+
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script>
+        let authToken = '';
+        let socket = null;
+        const API_BASE = 'http://localhost:3000/api';
+
+        async function testServerStatus() {
+            try {
+                const response = await fetch(`${API_BASE}`);
+                const data = await response.text();
+                document.getElementById('server-status').innerHTML = 
+                    `<span class="success">✅ Server is running!</span><br>Response: ${data}`;
+            } catch (error) {
+                document.getElementById('server-status').innerHTML = 
+                    `<span class="error">❌ Server connection failed: ${error.message}</span>`;
+            }
+        }
+
+        async function registerUser() {
+            const username = document.getElementById('username').value;
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+
+            try {
+                const response = await fetch(`${API_BASE}/auth/register`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, email, password })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    authToken = data.token;
+                    document.getElementById('register-result').innerHTML = 
+                        `<span class="success">✅ User registered successfully!</span><br>` +
+                        `User: ${data.user.username}<br>Token: ${authToken.substring(0, 20)}...`;
+                } else {
+                    document.getElementById('register-result').innerHTML = 
+                        `<span class="error">❌ Registration failed: ${data.message}</span>`;
+                }
+            } catch (error) {
+                document.getElementById('register-result').innerHTML = 
+                    `<span class="error">❌ Error: ${error.message}</span>`;
+            }
+        }
+
+        async function loginUser() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+
+            try {
+                const response = await fetch(`${API_BASE}/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    authToken = data.token;
+                    document.getElementById('login-result').innerHTML = 
+                        `<span class="success">✅ Login successful!</span><br>` +
+                        `User: ${data.user.username}<br>Token: ${authToken.substring(0, 20)}...`;
+                } else {
+                    document.getElementById('login-result').innerHTML = 
+                        `<span class="error">❌ Login failed: ${data.message}</span>`;
+                }
+            } catch (error) {
+                document.getElementById('login-result').innerHTML = 
+                    `<span class="error">❌ Error: ${error.message}</span>`;
+            }
+        }
+
+        async function createRoom() {
+            if (!authToken) {
+                document.getElementById('room-result').innerHTML = 
+                    `<span class="error">❌ Please login first!</span>`;
+                return;
+            }
+
+            const roomName = document.getElementById('room-name').value;
+
+            try {
+                const response = await fetch(`${API_BASE}/rooms`, {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: JSON.stringify({ name: roomName, description: 'Test room' })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    document.getElementById('room-result').innerHTML = 
+                        `<span class="success">✅ Room created!</span><br>` +
+                        `Room ID: ${data.id}<br>Name: ${data.name}<br>Stream Key: ${data.streamKey}`;
+                } else {
+                    document.getElementById('room-result').innerHTML = 
+                        `<span class="error">❌ Room creation failed: ${data.message}</span>`;
+                }
+            } catch (error) {
+                document.getElementById('room-result').innerHTML = 
+                    `<span class="error">❌ Error: ${error.message}</span>`;
+            }
+        }
+
+        async function getRooms() {
+            try {
+                const response = await fetch(`${API_BASE}/rooms`, {
+                    headers: authToken ? { 'Authorization': `Bearer ${authToken}` } : {}
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    document.getElementById('room-result').innerHTML = 
+                        `<span class="success">✅ Public rooms retrieved!</span><br>` +
+                        `Count: ${data.length}<br>` +
+                        `Rooms: ${JSON.stringify(data, null, 2)}`;
+                } else {
+                    document.getElementById('room-result').innerHTML = 
+                        `<span class="error">❌ Failed to get rooms: ${data.message}</span>`;
+                }
+            } catch (error) {
+                document.getElementById('room-result').innerHTML = 
+                    `<span class="error">❌ Error: ${error.message}</span>`;
+            }
+        }
+
+        async function getMediaStatus() {
+            if (!authToken) {
+                document.getElementById('media-result').innerHTML = 
+                    `<span class="error">❌ Please login first!</span>`;
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/media/server-status`, {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    document.getElementById('media-result').innerHTML = 
+                        `<span class="success">✅ Media server status retrieved!</span><br>` +
+                        `RTMP Port: ${data.rtmpPort}<br>` +
+                        `HTTP Port: ${data.httpPort}<br>` +
+                        `Running: ${data.isRunning}`;
+                } else {
+                    document.getElementById('media-result').innerHTML = 
+                        `<span class="error">❌ Failed to get media status: ${data.message}</span>`;
+                }
+            } catch (error) {
+                document.getElementById('media-result').innerHTML = 
+                    `<span class="error">❌ Error: ${error.message}</span>`;
+            }
+        }
+
+        function connectWebSocket() {
+            try {
+                socket = io('http://localhost:3000');
+                
+                socket.on('connect', () => {
+                    document.getElementById('websocket-result').innerHTML = 
+                        `<span class="success">✅ WebSocket connected!</span><br>Socket ID: ${socket.id}`;
+                    
+                    // Test authentication if we have a token
+                    if (authToken) {
+                        socket.emit('authenticate', { token: authToken });
+                    }
+                });
+
+                socket.on('authenticated', (data) => {
+                    document.getElementById('websocket-result').innerHTML += 
+                        `<br><span class="success">✅ WebSocket authenticated!</span><br>User: ${data.user.username}`;
+                });
+
+                socket.on('disconnect', () => {
+                    document.getElementById('websocket-result').innerHTML += 
+                        `<br><span class="error">❌ WebSocket disconnected</span>`;
+                });
+
+                socket.on('error', (error) => {
+                    document.getElementById('websocket-result').innerHTML += 
+                        `<br><span class="error">❌ WebSocket error: ${error.message}</span>`;
+                });
+
+            } catch (error) {
+                document.getElementById('websocket-result').innerHTML = 
+                    `<span class="error">❌ WebSocket connection failed: ${error.message}</span>`;
+            }
+        }
+
+        function disconnectWebSocket() {
+            if (socket) {
+                socket.disconnect();
+                socket = null;
+                document.getElementById('websocket-result').innerHTML += 
+                    `<br><span class="success">✅ WebSocket disconnected manually</span>`;
+            }
+        }
+
+        // Auto-test server status on page load
+        window.onload = () => {
+            testServerStatus();
+        };
+    </script>
+</body>
+</html>
