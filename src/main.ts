@@ -5,9 +5,14 @@ import { AppModule } from './app.module';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   
+  // Get allowed origins from environment or use defaults
+  const allowedOrigins = process.env.ALLOWED_ORIGINS 
+    ? process.env.ALLOWED_ORIGINS.split(',')
+    : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:8080', 'http://localhost:9090'];
+  
   // Enable CORS for development
   app.enableCors({
-    origin: ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:8080', 'file://'], // Added file:// protocol
+    origin: [...allowedOrigins, 'file://'], // Include file:// for local testing
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
     credentials: true,
     allowedHeaders: ['Content-Type', 'Authorization'],
@@ -29,6 +34,6 @@ async function bootstrap() {
   console.log(`🚀 Streaming server is running on: http://localhost:${port}/api`);
   console.log(`📡 WebSocket gateway is available on: ws://localhost:${port}`);
   console.log(`📺 RTMP server is running on: rtmp://localhost:1935`);
-  console.log(`🎥 HLS server is running on: http://localhost:8001`);
+  console.log(`🎥 HLS server is running on: http://localhost:8002`);
 }
 bootstrap();

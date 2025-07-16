@@ -18,6 +18,16 @@ export class StreamService {
     private userRepository: Repository<User>,
   ) {}
 
+  private generateStreamKey(): string {
+    // Generate a unique 8-character alphanumeric stream key
+    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+    let result = '';
+    for (let i = 0; i < 8; i++) {
+      result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return result;
+  }
+
   async createStream(userId: string, createStreamDto: CreateStreamDto): Promise<StreamResponseDto> {
     const user = await this.userRepository.findOne({ where: { id: userId } });
     if (!user) {
@@ -44,6 +54,7 @@ export class StreamService {
       status: StreamStatus.INACTIVE,
       streamer: user,
       room: room,
+      streamKey: this.generateStreamKey(),
       webrtcSessionId: uuidv4(),
     });
 
@@ -86,6 +97,7 @@ export class StreamService {
       streamer: { id: userId },
       room: { id: roomId },
       webrtcSessionId: uuidv4(),
+      streamKey: this.generateStreamKey(),
       metadata: JSON.stringify(streamData),
     });
 
@@ -165,6 +177,13 @@ export class StreamService {
     return streams.map(stream => this.toStreamResponse(stream));
   }
 
+  async findByStreamKey(streamKey: string): Promise<Stream | null> {
+    return this.streamRepository.findOne({
+      where: { streamKey },
+      relations: ['streamer', 'room'],
+    });
+  }
+
   private toStreamResponse(stream: Stream): StreamResponseDto {
     return {
       id: stream.id,
@@ -176,6 +195,7 @@ export class StreamService {
       rtmpUrl: stream.rtmpUrl,
       hlsUrl: stream.hlsUrl,
       webrtcSessionId: stream.webrtcSessionId,
+      streamKey: stream.streamKey,
       streamer: {
         id: stream.streamer.id,
         username: stream.streamer.username,

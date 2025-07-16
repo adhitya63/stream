@@ -2,6 +2,7 @@ import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/commo
 const NodeMediaServer = require('node-media-server');
 import { StreamService } from '../stream/stream.service';
 import { RoomService } from '../room/room.service';
+import { StreamStatus } from '../entities/stream.entity';
 
 @Injectable()
 export class MediaService implements OnModuleInit, OnModuleDestroy {
@@ -33,23 +34,13 @@ export class MediaService implements OnModuleInit, OnModuleDestroy {
         ping_timeout: 60,
       },
       http: {
-        port: 8001,
+        port: 8002,
         allow_origin: '*',
         mediaroot: './media',
       },
-      relay: {
-        ffmpeg: 'ffmpeg', // FFmpeg will be available after restart
-        tasks: [
-          {
-            app: 'live',
-            mode: 'push',
-            edge: 'rtmp://localhost:1935/hls',
-          }
-        ]
-      },
       auth: {
         play: false,
-        publish: true, // Enable authentication for streaming
+        publish: false, // Disable built-in auth, use custom validation
         secret: 'streaming-secret',
         api: true,
         api_user: 'admin',
@@ -64,12 +55,21 @@ export class MediaService implements OnModuleInit, OnModuleDestroy {
     
     this.nms.run();
     this.logger.log('RTMP Media Server started on port 1935');
-    this.logger.log('HTTP Media Server started on port 8001');
+    this.logger.log('HTTP Media Server started on port 8002');
   }
 
   private setupEventHandlers() {
+    // Add connection event for debugging
+    this.nms.on('preConnect', (id: string, args: any) => {
+      this.logger.log(`Pre-connect: ID=${id}, Args=${JSON.stringify(args)}`);
+    });
+
+    this.nms.on('postConnect', (id: string, args: any) => {
+      this.logger.log(`Post-connect: ID=${id}, Args=${JSON.stringify(args)}`);
+    });
+
     this.nms.on('prePublish', async (id: string, StreamPath: string, args: any) => {
-      this.logger.log(`Pre-publish: ID=${id}, Path=${StreamPath}`);
+      this.logger.log(`Pre-publish: ID=${id}, Path=${StreamPath}, Args=${JSON.stringify(args)}`);
       
       if (!StreamPath) {
         this.logger.warn('StreamPath is undefined in prePublish event');
@@ -78,15 +78,16 @@ export class MediaService implements OnModuleInit, OnModuleDestroy {
       
       // Extract stream key from path (e.g., /live/STREAM_KEY)
       const streamKey = StreamPath.split('/').pop();
+      this.logger.log(`Extracted stream key: ${streamKey}`);
       
       if (!streamKey) {
         this.logger.warn(`Invalid stream path: ${StreamPath}`);
         return false;
       }
 
-      // For production with authentication - validate stream key
+      // Custom authentication - validate stream key
       try {
-        // Validate stream key exists in database
+        this.logger.log(`Validating stream key: ${streamKey}`);
         const isValid = await this.validateStreamKey(streamKey);
         
         if (!isValid) {
@@ -94,7 +95,7 @@ export class MediaService implements OnModuleInit, OnModuleDestroy {
           return false;
         }
 
-        this.logger.log(`Stream key validated: ${streamKey}`);
+        this.logger.log(`Stream key validated successfully: ${streamKey}`);
         return true;
       } catch (error) {
         this.logger.error(`Error validating stream key: ${error.message}`);
@@ -172,27 +173,21 @@ export class MediaService implements OnModuleInit, OnModuleDestroy {
 
   private async validateStreamKey(streamKey: string): Promise<boolean> {
     try {
-      // For testing: accept stream keys that follow a pattern
-      // In production, you'd check against the database for valid stream keys
+      // Check if stream key exists in database and is active
+      const stream = await this.streamService.findByStreamKey(streamKey);
       
-      // Accept stream keys that are at least 6 characters long and alphanumeric
-      const isValidFormat = /^[a-zA-Z0-9]{6,}$/.test(streamKey);
-      
-      if (!isValidFormat) {
-        this.logger.warn(`Stream key format invalid: ${streamKey}`);
+      if (!stream) {
+        this.logger.warn(`Stream key not found in database: ${streamKey}`);
         return false;
       }
       
-      // For testing, accept these predefined keys or any that match the pattern
-      const allowedKeys = ['test123', 'demo123', 'livestream', 'stream001'];
-      const isAllowed = allowedKeys.includes(streamKey) || isValidFormat;
+      if (stream.status !== StreamStatus.ACTIVE) {
+        this.logger.warn(`Stream key exists but not active: ${streamKey}, status: ${stream.status}`);
+        return false;
+      }
       
-      this.logger.log(`Stream key validation: ${streamKey} - ${isAllowed ? 'VALID' : 'INVALID'}`);
-      return isAllowed;
-      
-      // In production, replace with:
-      // const stream = await this.streamService.findByStreamKey(streamKey);
-      // return stream && stream.isActive;
+      this.logger.log(`Stream key validation successful: ${streamKey}`);
+      return true;
     } catch (error) {
       this.logger.error(`Error validating stream key: ${error.message}`);
       return false;
@@ -204,7 +199,7 @@ export class MediaService implements OnModuleInit, OnModuleDestroy {
       // Update stream status in database
       this.logger.log(`Stream started with key: ${streamKey}`);        // Generate HLS and RTMP URLs
         const rtmpUrl = `rtmp://localhost:1935${streamPath}`;
-        const hlsUrl = `http://localhost:8001${streamPath}/index.m3u8`;
+        const hlsUrl = `http://localhost:8002${streamPath}/index.m3u8`;
       
       this.logger.log(`RTMP URL: ${rtmpUrl}`);
       this.logger.log(`HLS URL: ${hlsUrl}`);
@@ -256,7 +251,7 @@ export class MediaService implements OnModuleInit, OnModuleDestroy {
   getStreamInfo(streamKey: string) {
     return {
       rtmpUrl: `rtmp://localhost:1935/live/${streamKey}`,
-      hlsUrl: `http://localhost:8001/live/${streamKey}/index.m3u8`,
+      hlsUrl: `http://localhost:8002/live/${streamKey}/index.m3u8`,
       streamKey,
     };
   }
@@ -264,7 +259,7 @@ export class MediaService implements OnModuleInit, OnModuleDestroy {
   getServerStatus() {
     return {
       rtmpPort: 1935,
-      httpPort: 8001,
+      httpPort: 8002,
       isRunning: this.nms ? true : false,
     };
   }

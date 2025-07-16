@@ -37,6 +37,7 @@ export class StreamResponseDto {
   rtmpUrl?: string;
   hlsUrl?: string;
   webrtcSessionId?: string;
+  streamKey?: string;
   streamer: {
     id: string;
     username: string;

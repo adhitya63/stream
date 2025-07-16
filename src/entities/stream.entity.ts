@@ -49,6 +49,9 @@ export class Stream {
   @Column({ nullable: true })
   hlsUrl: string;
 
+  @Column({ unique: true, nullable: true })
+  streamKey: string;
+
   @Column({ nullable: true })
   webrtcSessionId: string;
 

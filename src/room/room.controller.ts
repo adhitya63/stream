@@ -4,11 +4,11 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CreateRoomDto, UpdateRoomDto } from '../dto/room.dto';
 
 @Controller('rooms')
-@UseGuards(JwtAuthGuard)
 export class RoomController {
   constructor(private readonly roomService: RoomService) {}
 
   @Post()
+  @UseGuards(JwtAuthGuard)
   async createRoom(
     @Request() req,
     @Body(ValidationPipe) createRoomDto: CreateRoomDto,
@@ -22,6 +22,7 @@ export class RoomController {
   }
 
   @Put(':id')
+  @UseGuards(JwtAuthGuard)
   async updateRoom(
     @Param('id') id: string,
     @Request() req,
@@ -31,12 +32,14 @@ export class RoomController {
   }
 
   @Delete(':id')
+  @UseGuards(JwtAuthGuard)
   async deleteRoom(@Param('id') id: string, @Request() req) {
     await this.roomService.deleteRoom(id, req.user.id);
     return { message: 'Room deleted successfully' };
   }
 
   @Get('user/my-rooms')
+  @UseGuards(JwtAuthGuard)
   async getMyRooms(@Request() req) {
     return this.roomService.getRoomsByUser(req.user.id);
   }

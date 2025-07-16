@@ -8,11 +8,19 @@ export class AuthController {
 
   @Post('register')
   async register(@Body(ValidationPipe) createUserDto: CreateUserDto) {
-    return this.authService.register(createUserDto);
+    const result = await this.authService.register(createUserDto);
+    return {
+      access_token: result.token,
+      user: result.user,
+    };
   }
 
   @Post('login')
   async login(@Body(ValidationPipe) loginDto: LoginDto) {
-    return this.authService.login(loginDto);
+    const result = await this.authService.login(loginDto);
+    return {
+      access_token: result.token,
+      user: result.user,
+    };
   }
 }
